@@ -5,7 +5,12 @@ VisualStudioVersion = 16.0.29215.179
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SonarQubeCommandlineExecutor", "SonarQubeCommandlineExecutor\SonarQubeCommandlineExecutor.csproj", "{65784A06-0846-43DB-BEC0-9FA55D24C444}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SonarQube.Commandline.StepsExecutor", "SonarQube.Commandline.StepsExecutor\SonarQube.Commandline.StepsExecutor.csproj", "{BAE7D4CF-D369-42BD-A522-6F84574AF146}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SonarQube.Commandline.StepsExecutor", "SonarQube.Commandline.StepsExecutor\SonarQube.Commandline.StepsExecutor.csproj", "{BAE7D4CF-D369-42BD-A522-6F84574AF146}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A3B5C46F-637C-4354-B591-EBFDAF876AE1}"
+	ProjectSection(SolutionItems) = preProject
+		SampleCodeCoverage.runsettings = SampleCodeCoverage.runsettings
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
