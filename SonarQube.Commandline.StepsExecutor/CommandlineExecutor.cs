@@ -51,10 +51,15 @@ namespace SonarQube.Commandline.StepsExecutor
         /// <param name="solutionFilename">Path and file name of the solution</param>
         /// <param name="runsettingsfileName">This is a file with a .runsettings extension. This file is required/used when you want to indicate that when you're collecting code coverage you want to exclude test projects</param>
         /// <param name="testCaseFilter">If you have tests that you want/need to exclude then use can use the Priority attribute on the tests and use that as a filter here</param>
-        public static void RunTestsUsingVsTest(string solutionFilename, string runsettingsfileName, string testCaseFilter = null)
+        public static void RunTestsUsingVsTest(string solutionFilename, string runsettingsfileName = null, string testCaseFilter = null)
         {
             var projectDirectory = Path.GetDirectoryName(solutionFilename);
-            string commandlineArguments = $"--settings:\"{projectDirectory + "\\" + runsettingsfileName}\" --inIsolation --parallel --collect:\"Code Coverage\" --logger:\"trx\"";
+            string commandlineArguments = $"--inIsolation --parallel --collect:\"Code Coverage\" --logger:\"trx\"";
+
+            if (runsettingsfileName != null)
+            {
+                commandlineArguments += $" --settings:\"{projectDirectory + "\\" + runsettingsfileName}\"";
+            }
 
             if (testCaseFilter != null)
             {
