@@ -187,7 +187,7 @@ namespace SonarQube.Commandline.StepsExecutor
             foreach (var csProjectFile in csProjectFiles)
             {
                 var projectFileContents = File.ReadAllText(csProjectFile);
-                if (projectFileContents.Contains("{3AC096D0-A1C2-E12C-1390-A8335801FDAB}"))
+                if (projectFileContents.Contains("TestPlatform.TestFramework") || projectFileContents.Contains("Microsoft.NET.Test.Sdk"))
                 {
                     yield return csProjectFile;
                 }
