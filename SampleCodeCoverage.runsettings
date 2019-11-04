@@ -8,13 +8,8 @@
             <ModulePaths>
               <Exclude>
                 <ModulePath>.*\.*analysis.*</ModulePath>
-                <ModulePath>.*\.*tests\..*</ModulePath>
-                <ModulePath>.*\.*Tests\..*</ModulePath>
-                <ModulePath>.*\.*testing\..*</ModulePath>
-                <ModulePath>.*\.*Testing\..*</ModulePath>
-                <!--<ModulePath>\.*Test.*\.dll$</ModulePath>
                 <ModulePath>.*\.*Tests\.dll$</ModulePath>
-                <ModulePath>\.*\.*Testing\.Shared\.dll$</ModulePath>-->                
+                <ModulePath>.*\.*Testing\.Shared\..*</ModulePath>
               </Exclude>
             </ModulePaths>
             <Attributes>
