@@ -66,12 +66,12 @@ namespace SonarQube.Commandline.StepsExecutor
                 commandlineArguments += $" --testCaseFilter:\"{testCaseFilter}\"";
             }
 
-            var testAssemblies = GetTestProjectAssemblies(projectDirectory).ToList();
+            var testProjectAssemblies = GetTestProjectAssemblies(projectDirectory);
 
-            var testFileNames = string.Join(" ", testAssemblies);
+            var testProjectFileNames = string.Join(" ", testProjectAssemblies);
 
 
-            ExecuteCommandlineProcess(projectDirectory, VsTestConsolePath, testFileNames + " " + commandlineArguments);
+            ExecuteCommandlineProcess(projectDirectory, VsTestConsolePath, testProjectFileNames + " " + commandlineArguments);
         }
 
         public static void BuildSolution(string solutionFilename)
