@@ -135,6 +135,7 @@ namespace SonarQube.Commandline.StepsExecutor
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden,
                 RedirectStandardOutput = true,
+                RedirectStandardError = true,
                 UseShellExecute = false
             };
 
@@ -142,10 +143,19 @@ namespace SonarQube.Commandline.StepsExecutor
             {
                 process.StartInfo = processStartInfo;
                 process.OutputDataReceived += Process_OutputDataReceived;
+                process.ErrorDataReceived += Process_ErrorDataReceived;
                 process.Start();
                 process.BeginOutputReadLine();
                 process.WaitForExit();                
             }
+        }
+
+        private static void Process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
+        {
+            var originalConsoleColor = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.DarkRed;
+            Console.WriteLine(e.Data);
+            Console.ForegroundColor = originalConsoleColor;
         }
 
         private static void Process_OutputDataReceived(object sender, DataReceivedEventArgs e)
@@ -187,7 +197,9 @@ namespace SonarQube.Commandline.StepsExecutor
             foreach (var csProjectFile in csProjectFiles)
             {
                 var projectFileContents = File.ReadAllText(csProjectFile);
-                if (projectFileContents.Contains("TestPlatform.TestFramework") || projectFileContents.Contains("Microsoft.NET.Test.Sdk"))
+                if (projectFileContents.Contains("TestPlatform.TestFramework")
+                    || projectFileContents.Contains("Microsoft.NET.Test.Sdk")
+                    || projectFileContents.Contains("{3AC096D0-A1C2-E12C-1390-A8335801FDAB}"))
                 {
                     yield return csProjectFile;
                 }
