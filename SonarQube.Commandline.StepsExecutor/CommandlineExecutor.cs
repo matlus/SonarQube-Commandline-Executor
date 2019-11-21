@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,19 +11,34 @@ namespace SonarQube.Commandline.StepsExecutor
 {
     public static class CommandlineExecutor
     {
+        public enum LogType {  Normal, Info, Error, Warning }
+
         private const string MsBuildPath = @"C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe";
         private const string DotNetPath = @"C:\Program Files\dotnet\dotnet.exe";
         private const string VsTestConsolePath = @"C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe";
         private const string CodeCoverageExePartialPath = @"\.nuget\packages\microsoft.codecoverage\15.9.0\build\netstandard1.0\CodeCoverage\CodeCoverage.exe";
 
+        private static Action<LogType, string> _loggerCallback;
+
+        public static void SetLoggerCallback(Action<LogType, string> loggerCallback)
+        {
+            _loggerCallback = loggerCallback;
+        }
+
         public static void CleanProjectFolders(string solutionFilename)
         {
+            _loggerCallback(LogType.Normal, "");
+            _loggerCallback(LogType.Info, "Starting - Cleaning Project Folders");
+
             var projectDirectory = Path.GetDirectoryName(solutionFilename);
             var removeTestResultsDirTask = Task.Run(() => RemoveTestResultsDirectories(projectDirectory));
             var removeBinAndObjDirTask = Task.Run(() => RemoveBinAndObjDirectories(projectDirectory));
             var removeSonarQubeArtifactsTask = Task.Run(() => RemoveSonarQubeArtifacts(projectDirectory));
 
             Task.WhenAll(removeTestResultsDirTask, removeBinAndObjDirTask, removeSonarQubeArtifactsTask).Wait();
+
+            _loggerCallback(LogType.Info, "Finished - Cleaning Project Folders");
+            _loggerCallback(LogType.Normal, "");
         }
 
         private static void RemoveTestResultsDirectories(string projectDirectory)
@@ -45,7 +61,7 @@ namespace SonarQube.Commandline.StepsExecutor
         {
             Parallel.ForEach(directoryPaths, directoryPath =>
             {
-                Console.WriteLine("Removing Directory: " + directoryPath);
+                _loggerCallback(LogType.Info, "Removing Directory: " + directoryPath);
                 ExecuteCommandlineProcess("", "cmd.exe", "/C RMDIR /Q /S \"" + directoryPath + "\"");
             });
         }
@@ -178,15 +194,12 @@ namespace SonarQube.Commandline.StepsExecutor
 
         private static void Process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
         {
-            var originalConsoleColor = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.DarkRed;
-            Console.WriteLine(e.Data);
-            Console.ForegroundColor = originalConsoleColor;
+            _loggerCallback(LogType.Error, e.Data);
         }
 
         private static void Process_OutputDataReceived(object sender, DataReceivedEventArgs e)
         {
-            Console.WriteLine(e.Data);
+            _loggerCallback(LogType.Normal, e.Data);
         }
 
         private static string ExtractProjectName(string coverageFilePath)
@@ -201,6 +214,9 @@ namespace SonarQube.Commandline.StepsExecutor
 
         private static IEnumerable<string> GetTestProjectAssemblies(string projectDirectory)
         {
+            _loggerCallback(LogType.Normal, "");
+            _loggerCallback(LogType.Info, "Starting - Discovering Test Projects");
+
             var testProjects = DiscoverTestProjects(projectDirectory);
             var concurrentBag = new ConcurrentBag<string>();
 
@@ -211,7 +227,14 @@ namespace SonarQube.Commandline.StepsExecutor
                 var testProjectAssemblies = Directory.EnumerateFiles(testProjectDirectory + "\\bin", testProjectFilename + ".dll", SearchOption.AllDirectories);
                 var testProjectAssembly = testProjectAssemblies.Single();
                 concurrentBag.Add("\"" + testProjectAssembly + "\"");
+                _loggerCallback(LogType.Info, "Found Test Project: " + testProjectAssembly);
             });
+
+            _loggerCallback(LogType.Normal, "");
+            _loggerCallback(LogType.Info, concurrentBag.Count.ToString(CultureInfo.CurrentCulture) + " Test Project Found");
+            _loggerCallback(LogType.Normal, "");
+            _loggerCallback(LogType.Info, "Finished - Discovering Test Projects");
+            _loggerCallback(LogType.Normal, "");
 
             return concurrentBag.AsEnumerable();
         }
