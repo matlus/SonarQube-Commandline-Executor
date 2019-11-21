@@ -10,7 +10,7 @@ namespace SonarQubeCommandlineExecutor
             var solutionFilename = @"C:\Users\c102116\Source\Repos\MovieService\MovieService.sln";
             var solutionName = CommandlineExecutor.GetSolutionName(solutionFilename);
 
-            CommandlineExecutor.RemoveTestResultsDirectories(solutionFilename);
+            CommandlineExecutor.CleanProjectFolders(solutionFilename);
             CommandlineExecutor.SonarScannerBegin(solutionFilename, solutionName);
             CommandlineExecutor.BuildSolution(solutionFilename);
             CommandlineExecutor.RunTestsUsingVsTest(solutionFilename, "CodeCoverage.runsettings", "Priority != -1");            

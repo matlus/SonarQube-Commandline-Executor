@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace SonarQube.Commandline.StepsExecutor
 {
@@ -13,15 +15,39 @@ namespace SonarQube.Commandline.StepsExecutor
         private const string VsTestConsolePath = @"C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe";
         private const string CodeCoverageExePartialPath = @"\.nuget\packages\microsoft.codecoverage\15.9.0\build\netstandard1.0\CodeCoverage\CodeCoverage.exe";
 
-        public static void RemoveTestResultsDirectories(string solutionFilename)
+        public static void CleanProjectFolders(string solutionFilename)
         {
             var projectDirectory = Path.GetDirectoryName(solutionFilename);
-            var testResultsDirectories = Directory.GetDirectories(projectDirectory, "TestResults", SearchOption.AllDirectories);
+            var removeTestResultsDirTask = Task.Run(() => RemoveTestResultsDirectories(projectDirectory));
+            var removeBinAndObjDirTask = Task.Run(() => RemoveBinAndObjDirectories(projectDirectory));
+            var removeSonarQubeArtifactsTask = Task.Run(() => RemoveSonarQubeArtifacts(projectDirectory));
 
-            foreach (var testResultsDirectory in testResultsDirectories)
+            Task.WhenAll(removeTestResultsDirTask, removeBinAndObjDirTask, removeSonarQubeArtifactsTask).Wait();
+        }
+
+        private static void RemoveTestResultsDirectories(string projectDirectory)
+        {
+            DeleteDirectoryRecursive(Directory.GetDirectories(projectDirectory, "TestResults", SearchOption.AllDirectories));
+        }
+
+        private static void RemoveBinAndObjDirectories(string projectDirectory)
+        {
+            DeleteDirectoryRecursive(Directory.GetDirectories(projectDirectory, "bin", SearchOption.AllDirectories));
+            DeleteDirectoryRecursive(Directory.GetDirectories(projectDirectory, "obj", SearchOption.AllDirectories));
+        }
+
+        private static void RemoveSonarQubeArtifacts(string projectDirectory)
+        {
+            DeleteDirectoryRecursive(Directory.GetDirectories(projectDirectory, ".sonarqube", SearchOption.AllDirectories));
+        }
+
+        private static void DeleteDirectoryRecursive(IEnumerable<string> directoryPaths)
+        {
+            Parallel.ForEach(directoryPaths, directoryPath =>
             {
-                Directory.Delete(testResultsDirectory, true);
-            }
+                Console.WriteLine("Removing Directory: " + directoryPath);
+                ExecuteCommandlineProcess("", "cmd.exe", "/C RMDIR /Q /S \"" + directoryPath + "\"");
+            });
         }
 
         public static void SonarScannerBegin(string solutionFilename, string solutionName)
@@ -34,7 +60,7 @@ namespace SonarQube.Commandline.StepsExecutor
         public static void SonarScannerEnd(string solutionFilename)
         {            
             var projectDirectory = Path.GetDirectoryName(solutionFilename);
-            ExecuteCommandlineProcess(projectDirectory, "SonarScanner.MSBuild.exe", "end");
+            ExecuteCommandlineProcess(projectDirectory, "SonarScanner.MSBuild.exe", "end");            
         }
 
         public static void RunTestsUsingDotNet(string solutionFilename, string runsettingsFilename)
@@ -54,7 +80,7 @@ namespace SonarQube.Commandline.StepsExecutor
         public static void RunTestsUsingVsTest(string solutionFilename, string runsettingsfileName = null, string testCaseFilter = null)
         {
             var projectDirectory = Path.GetDirectoryName(solutionFilename);
-            string commandlineArguments = $"--inIsolation --parallel --collect:\"Code Coverage\" --logger:\"trx\"";
+            string commandlineArguments = $"--inIsolation --enablecodecoverage --parallel --collect:\"Code Coverage\" --logger:\"trx\"";
 
             if (runsettingsfileName != null)
             {
@@ -77,7 +103,7 @@ namespace SonarQube.Commandline.StepsExecutor
         public static void BuildSolution(string solutionFilename)
         {
             var projectDirectory = Path.GetDirectoryName(solutionFilename);            
-            var commandlineArguments = $"\"{solutionFilename}\" /m /nr:false /t:Clean;Restore;Rebuild /p:Configuration=Release";
+            var commandlineArguments = $"\"{solutionFilename}\" /m:4 /nr:false /r: /t:Clean;Rebuild /p:Configuration=Release";
             ExecuteCommandlineProcess(projectDirectory, MsBuildPath, commandlineArguments);
         }
 
@@ -176,34 +202,38 @@ namespace SonarQube.Commandline.StepsExecutor
         private static IEnumerable<string> GetTestProjectAssemblies(string projectDirectory)
         {
             var testProjects = DiscoverTestProjects(projectDirectory);
+            var concurrentBag = new ConcurrentBag<string>();
 
-            foreach (var testProject in testProjects)
+            Parallel.ForEach(testProjects, testProject =>
             {
                 var testProjectDirectory = Path.GetDirectoryName(testProject);
                 var testProjectFilename = Path.GetFileNameWithoutExtension(testProject);
-                var testProjectAssemblies = Directory.EnumerateFiles(testProjectDirectory, testProjectFilename + ".*", SearchOption.AllDirectories);
-                var testProjectAssembly = testProjectAssemblies.FirstOrDefault(f => f.Contains(".dll") || f.Contains(".exe"));
-                if (testProjectAssembly != null)
-                {
-                    yield return "\"" + testProjectAssembly + "\"";
-                }
-            }
+                var testProjectAssemblies = Directory.EnumerateFiles(testProjectDirectory + "\\bin", testProjectFilename + ".dll", SearchOption.AllDirectories);
+                var testProjectAssembly = testProjectAssemblies.Single();
+                concurrentBag.Add("\"" + testProjectAssembly + "\"");
+            });
+
+            return concurrentBag.AsEnumerable();
         }
 
         private static IEnumerable<string> DiscoverTestProjects(string projectDirectory)
         {
             var csProjectFiles = Directory.EnumerateFiles(projectDirectory, "*.csproj", SearchOption.AllDirectories);
 
-            foreach (var csProjectFile in csProjectFiles)
+            var concurrentBag = new ConcurrentBag<string>();
+
+            Parallel.ForEach(csProjectFiles, csProjectFile =>
             {
                 var projectFileContents = File.ReadAllText(csProjectFile);
                 if (projectFileContents.Contains("TestPlatform.TestFramework")
                     || projectFileContents.Contains("Microsoft.NET.Test.Sdk")
                     || projectFileContents.Contains("{3AC096D0-A1C2-E12C-1390-A8335801FDAB}"))
                 {
-                    yield return csProjectFile;
+                    concurrentBag.Add(csProjectFile);
                 }
-            }
+            });
+
+            return concurrentBag.AsEnumerable();
         }
     }
 }
