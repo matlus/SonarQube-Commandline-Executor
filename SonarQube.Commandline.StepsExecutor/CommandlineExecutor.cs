@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Xml;
 
 namespace SonarQube.Commandline.StepsExecutor
 {
@@ -217,14 +218,13 @@ namespace SonarQube.Commandline.StepsExecutor
             _loggerCallback(LogType.Normal, "");
             _loggerCallback(LogType.Info, "Starting - Discovering Test Projects");
 
-            var testProjects = DiscoverTestProjects(projectDirectory);
+            var testProjectsAndAssemblyNames = DiscoverUnitTestProjectsAndAssemblyNames(projectDirectory);
             var concurrentBag = new ConcurrentBag<string>();
 
-            Parallel.ForEach(testProjects, testProject =>
+            Parallel.ForEach(testProjectsAndAssemblyNames, testProjectAndAssemblyName =>
             {
-                var testProjectDirectory = Path.GetDirectoryName(testProject);
-                var testProjectFilename = Path.GetFileNameWithoutExtension(testProject);
-                var testProjectAssemblies = Directory.EnumerateFiles(testProjectDirectory + "\\bin", testProjectFilename + ".dll", SearchOption.AllDirectories);
+                var testProjectDirectory = Path.GetDirectoryName(testProjectAndAssemblyName.Key);
+                var testProjectAssemblies = Directory.EnumerateFiles(testProjectDirectory + "\\bin", "*" + testProjectAndAssemblyName.Value + ".dll", SearchOption.AllDirectories);
                 var testProjectAssembly = testProjectAssemblies.Single();
                 concurrentBag.Add("\"" + testProjectAssembly + "\"");
                 _loggerCallback(LogType.Info, "Found Test Project: " + testProjectAssembly);
@@ -239,24 +239,76 @@ namespace SonarQube.Commandline.StepsExecutor
             return concurrentBag.AsEnumerable();
         }
 
-        private static IEnumerable<string> DiscoverTestProjects(string projectDirectory)
+        private static IEnumerable<KeyValuePair<string, string>> DiscoverUnitTestProjectsAndAssemblyNames(string projectDirectory)
         {
             var csProjectFiles = Directory.EnumerateFiles(projectDirectory, "*.csproj", SearchOption.AllDirectories);
-
-            var concurrentBag = new ConcurrentBag<string>();
+            var projectFileToAssemblyMap = new ConcurrentDictionary<string, string>();
 
             Parallel.ForEach(csProjectFiles, csProjectFile =>
             {
-                var projectFileContents = File.ReadAllText(csProjectFile);
-                if (projectFileContents.Contains("TestPlatform.TestFramework")
-                    || projectFileContents.Contains("Microsoft.NET.Test.Sdk")
-                    || projectFileContents.Contains("{3AC096D0-A1C2-E12C-1390-A8335801FDAB}"))
+                var (isUnitTestProject, assemblyName) = DetermineIfProjectIsUnitTestProject(csProjectFile);
+                if (isUnitTestProject)
                 {
-                    concurrentBag.Add(csProjectFile);
+                    projectFileToAssemblyMap.TryAdd(csProjectFile, assemblyName);
                 }
             });
 
-            return concurrentBag.AsEnumerable();
+            return projectFileToAssemblyMap.AsEnumerable();
+        }
+
+        private static (bool isUnitTestProject, string assemblyName) DetermineIfProjectIsUnitTestProject(string projectFilePath)
+        {
+            FileStream projectFileStream = null;
+            XmlReader xmlReader = null;
+
+            string assmeblyName = null;
+            bool isUnitTestProject = false;
+
+            try
+            {
+                projectFileStream = new FileStream(projectFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                xmlReader = XmlReader.Create(projectFileStream);
+
+                while (xmlReader.Read())
+                {
+
+                    if (xmlReader.NodeType == XmlNodeType.Element)
+                    {
+                        var elementName = xmlReader.Name;
+
+                        if (elementName == "AssemblyName")
+                        {
+                            assmeblyName = xmlReader.ReadElementContentAsString();
+                            continue;
+                        }
+                        else if (elementName == "PackageReference" && xmlReader.GetAttribute("Include") == "Microsoft.NET.Test.Sdk")
+                        {
+                            isUnitTestProject = true;
+                            continue;
+                        }
+                        else if (elementName == "ProjectTypeGuids")
+                        {
+                            var projectTypeGuids = xmlReader.ReadElementContentAsString();
+                            if (projectTypeGuids.Contains("{3AC096D0-A1C2-E12C-1390-A8335801FDAB}"))
+                            {
+                                isUnitTestProject = true;
+                            }
+                        }
+                    }
+                }
+
+                if (assmeblyName == null)
+                {
+                    assmeblyName = Path.GetFileNameWithoutExtension(projectFilePath);
+                }
+
+                return (isUnitTestProject, assmeblyName);
+            }
+            finally
+            {
+                xmlReader.Dispose();
+                projectFileStream.Dispose();
+            }
         }
     }
 }

@@ -7,7 +7,7 @@ namespace SonarQubeCommandlineExecutor
     internal static class Program
     {
         private static void Main()
-        {
+        {            
             var solutionFilename = @"C:\Users\c102116\Source\Repos\MovieService\MovieService.sln";
             var solutionName = CommandlineExecutor.GetSolutionName(solutionFilename);
 
