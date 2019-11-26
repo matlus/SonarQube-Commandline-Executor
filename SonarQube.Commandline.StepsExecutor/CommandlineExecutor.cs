@@ -261,13 +261,13 @@ namespace SonarQube.Commandline.StepsExecutor
             FileStream projectFileStream = null;
             XmlReader xmlReader = null;
 
-            string assmeblyName = null;
-            bool isUnitTestProject = false;
-
             try
             {
                 projectFileStream = new FileStream(projectFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 xmlReader = XmlReader.Create(projectFileStream);
+
+                string assmeblyName = null;
+                bool isUnitTestProject = false;
 
                 while (xmlReader.Read())
                 {
