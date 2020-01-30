@@ -84,6 +84,7 @@ namespace SonarQube.Commandline.StepsExecutor
         {
             var projectDirectory = Path.GetDirectoryName(solutionFilename);
             var commandlineArguments = $"test \"{solutionFilename}\" --configuration Release --settings \"{ projectDirectory + "\\" + runsettingsFilename}\" --no-build --collect \"Code Coverage\" --logger \"trx\"";
+            LogCommandline("RunTestsUsingDotNet", projectDirectory, DotNetPath, commandlineArguments);
             ExecuteCommandlineProcess(projectDirectory, DotNetPath, commandlineArguments);
         }
 
@@ -113,7 +114,7 @@ namespace SonarQube.Commandline.StepsExecutor
 
             var testProjectFileNames = string.Join(" ", testProjectAssemblies);
 
-
+            LogCommandline("RunTestsUsingVsTest", projectDirectory, VsTestConsolePath, testProjectFileNames + " " + commandlineArguments);
             ExecuteCommandlineProcess(projectDirectory, VsTestConsolePath, testProjectFileNames + " " + commandlineArguments);
         }
 
@@ -121,6 +122,7 @@ namespace SonarQube.Commandline.StepsExecutor
         {
             var projectDirectory = Path.GetDirectoryName(solutionFilename);            
             var commandlineArguments = $"\"{solutionFilename}\" /m:4 /nr:false /r: /t:Clean;Rebuild /p:Configuration=Release";
+            LogCommandline("BuildSolution", projectDirectory, MsBuildPath, commandlineArguments);
             ExecuteCommandlineProcess(projectDirectory, MsBuildPath, commandlineArguments);
         }
 
@@ -152,6 +154,7 @@ namespace SonarQube.Commandline.StepsExecutor
             {
 
                 var commandlineArguments = $"analyze /output:\"{coverageFile}xml\" \"{coverageFile}\"";
+                LogCommandline("ConvertCoverageFilesToXml", projectDirectory, CodeCoverageExecutable, commandlineArguments);
                 ExecuteCommandlineProcess(projectDirectory, CodeCoverageExecutable, commandlineArguments);
             }
         }
@@ -163,9 +166,20 @@ namespace SonarQube.Commandline.StepsExecutor
         /// <param name="scriptArguments">Any arguments the powershell script needs.</param>
         public static void ExecutePowershellScript(string scriptPathAndFilename, string scriptArguments)
         {
+            var powershellExecutable = "powershell.exe";
             var workingDirectory = Path.GetDirectoryName(scriptPathAndFilename);
             var commandlineArguments = $" -NoProfile -ExecutionPolicy unrestricted -file \"{scriptPathAndFilename}\" {scriptArguments}";
-            ExecuteCommandlineProcess(workingDirectory, "powershell.exe", commandlineArguments);
+
+            LogCommandline("ExecutePowershellScript", workingDirectory, powershellExecutable, commandlineArguments);
+            ExecuteCommandlineProcess(workingDirectory, powershellExecutable, commandlineArguments);
+        }
+
+        private static void LogCommandline(string description, string workingDirectory, string filename, string commandlineArguments)
+        {
+            _loggerCallback(LogType.Info, description);
+            _loggerCallback(LogType.Info, "\tWorking Directory: " + workingDirectory);
+            _loggerCallback(LogType.Info, "\tFilename: " + filename);
+            _loggerCallback(LogType.Info, "\tCommandline Arguments: " + commandlineArguments);
         }
 
         private static void ExecuteCommandlineProcess(string workingDirectory, string fileName, string commandlinearguments)

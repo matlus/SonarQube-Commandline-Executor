@@ -1,5 +1,6 @@
 ﻿using SonarQube.Commandline.StepsExecutor;
 using System;
+using System.IO;
 using static SonarQube.Commandline.StepsExecutor.CommandlineExecutor;
 
 namespace SonarQubeCommandlineExecutor
@@ -7,17 +8,28 @@ namespace SonarQubeCommandlineExecutor
     internal static class Program
     {
         private static void Main()
-        {            
+        {
             var solutionFilename = @"C:\Users\c102116\Source\Repos\MovieService\MovieService.sln";
-            var solutionName = CommandlineExecutor.GetSolutionName(solutionFilename);
 
-            CommandlineExecutor.SetLoggerCallback(LoggerCallback);
-            CommandlineExecutor.CleanProjectFolders(solutionFilename);
-            CommandlineExecutor.SonarScannerBegin(solutionFilename, solutionName);
-            CommandlineExecutor.BuildSolution(solutionFilename);
-            CommandlineExecutor.RunTestsUsingVsTest(solutionFilename, "CodeCoverage.runsettings", "Priority != -1");            
-            CommandlineExecutor.ConvertCoverageFilesToXml(solutionFilename);
-            CommandlineExecutor.SonarScannerEnd(solutionFilename);
+            ////TextWriter originalStdOutTextWriter = Console.Out;
+
+            ////using (var streamWriter = new StreamWriter(@".\SonarQubeCommandlineOutput.txt"))
+            ////{
+            ////    Console.SetOut(streamWriter);
+
+                var solutionName = CommandlineExecutor.GetSolutionName(solutionFilename);
+
+                CommandlineExecutor.SetLoggerCallback(LoggerCallback);
+                CommandlineExecutor.CleanProjectFolders(solutionFilename);
+                CommandlineExecutor.SonarScannerBegin(solutionFilename, solutionName);
+                CommandlineExecutor.BuildSolution(solutionFilename);
+                CommandlineExecutor.RunTestsUsingVsTest(solutionFilename, "CodeCoverage.runsettings", "Priority != -1");
+                CommandlineExecutor.ConvertCoverageFilesToXml(solutionFilename);
+                CommandlineExecutor.SonarScannerEnd(solutionFilename);
+            ////}
+
+            ////Console.SetOut(originalStdOutTextWriter);
+            Console.WriteLine("Done");
         }
 
         private static void LoggerCallback(LogType logType, string data)
