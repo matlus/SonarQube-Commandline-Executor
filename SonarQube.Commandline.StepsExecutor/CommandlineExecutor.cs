@@ -12,7 +12,7 @@ namespace SonarQube.Commandline.StepsExecutor
 {
     public static class CommandlineExecutor
     {
-        public enum LogType {  Normal, Info, Error, Warning }
+        public enum LogType { Normal, Info, Error, Warning }
 
         private const string MsBuildPath = @"C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe";
         private const string DotNetPath = @"C:\Program Files\dotnet\dotnet.exe";
@@ -75,9 +75,9 @@ namespace SonarQube.Commandline.StepsExecutor
         }
 
         public static void SonarScannerEnd(string solutionFilename)
-        {            
+        {
             var projectDirectory = Path.GetDirectoryName(solutionFilename);
-            ExecuteCommandlineProcess(projectDirectory, "SonarScanner.MSBuild.exe", "end");            
+            ExecuteCommandlineProcess(projectDirectory, "SonarScanner.MSBuild.exe", "end");
         }
 
         public static void RunTestsUsingDotNet(string solutionFilename, string runsettingsFilename)
@@ -120,10 +120,37 @@ namespace SonarQube.Commandline.StepsExecutor
 
         public static void BuildSolution(string solutionFilename)
         {
-            var projectDirectory = Path.GetDirectoryName(solutionFilename);            
-            var commandlineArguments = $"\"{solutionFilename}\" /m:4 /nr:false /r: /t:Clean;Rebuild /p:Configuration=Release";
-            LogCommandline("BuildSolution", projectDirectory, MsBuildPath, commandlineArguments);
-            ExecuteCommandlineProcess(projectDirectory, MsBuildPath, commandlineArguments);
+            bool buildSucceeded = true;            
+            var projectDirectory = Path.GetDirectoryName(solutionFilename);
+            var buildErrorsLogFile = Path.GetTempPath() + GetSolutionName(solutionFilename) + "_BuildErrors.txt";
+
+            Action<LogType, string> buildFailureDetectCallback = (logType, d) =>
+            {
+                if (d != null && d.Contains("Build FAILED"))
+                {
+                    buildSucceeded = false;
+                }
+            };
+
+            try
+            {
+                _loggerCallback += buildFailureDetectCallback;
+                var commandlineArguments = $"\"{solutionFilename}\" /m:4 /nr:false /r: /t:Clean;Rebuild /p:Configuration=Release /flp1:logfile={buildErrorsLogFile};errorsonly";
+                LogCommandline("BuildSolution", projectDirectory, MsBuildPath, commandlineArguments);
+                ExecuteCommandlineProcess(projectDirectory, MsBuildPath, commandlineArguments);
+            }
+            finally
+            {
+                _loggerCallback -= buildFailureDetectCallback;
+            }
+
+
+            if (!buildSucceeded)
+            {
+                _loggerCallback(LogType.Error, File.ReadAllText(buildErrorsLogFile));
+
+                throw new SolutionBuildException($"Building Solution: {solutionFilename}, Failed.");
+            }
         }
 
         public static string GetSolutionName(string solutionFilename)
@@ -134,7 +161,7 @@ namespace SonarQube.Commandline.StepsExecutor
         public static void ConvertCoverageFilesToXml(string solutionFilename)
         {
             var projectDirectory = Path.GetDirectoryName(solutionFilename);
-            var coverageFiles = Directory.GetFiles(projectDirectory, "*.coverage", SearchOption.AllDirectories);            
+            var coverageFiles = Directory.GetFiles(projectDirectory, "*.coverage", SearchOption.AllDirectories);
 
             var uniqueProjects = new Dictionary<string, string>();
 
@@ -203,7 +230,7 @@ namespace SonarQube.Commandline.StepsExecutor
                 process.ErrorDataReceived += Process_ErrorDataReceived;
                 process.Start();
                 process.BeginOutputReadLine();
-                process.WaitForExit();                
+                process.WaitForExit();
             }
         }
 
@@ -324,5 +351,17 @@ namespace SonarQube.Commandline.StepsExecutor
                 projectFileStream.Dispose();
             }
         }
+    }
+
+
+    [Serializable]
+    public sealed class SolutionBuildException : Exception
+    {
+        public SolutionBuildException() { }
+        public SolutionBuildException(string message) : base(message) { }
+        public SolutionBuildException(string message, Exception inner) : base(message, inner) { }
+        private SolutionBuildException(
+          System.Runtime.Serialization.SerializationInfo info,
+          System.Runtime.Serialization.StreamingContext context) : base(info, context) { }
     }
 }

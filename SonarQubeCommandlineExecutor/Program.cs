@@ -1,6 +1,5 @@
 ﻿using SonarQube.Commandline.StepsExecutor;
 using System;
-using System.IO;
 using static SonarQube.Commandline.StepsExecutor.CommandlineExecutor;
 
 namespace SonarQubeCommandlineExecutor
@@ -11,12 +10,8 @@ namespace SonarQubeCommandlineExecutor
         {
             var solutionFilename = @"C:\Users\c102116\Source\Repos\MovieService\MovieService.sln";
 
-            ////TextWriter originalStdOutTextWriter = Console.Out;
-
-            ////using (var streamWriter = new StreamWriter(@".\SonarQubeCommandlineOutput.txt"))
-            ////{
-            ////    Console.SetOut(streamWriter);
-
+            try
+            {
                 var solutionName = CommandlineExecutor.GetSolutionName(solutionFilename);
 
                 CommandlineExecutor.SetLoggerCallback(LoggerCallback);
@@ -26,10 +21,14 @@ namespace SonarQubeCommandlineExecutor
                 CommandlineExecutor.RunTestsUsingVsTest(solutionFilename, "CodeCoverage.runsettings", "Priority != -1");
                 CommandlineExecutor.ConvertCoverageFilesToXml(solutionFilename);
                 CommandlineExecutor.SonarScannerEnd(solutionFilename);
-            ////}
-
-            ////Console.SetOut(originalStdOutTextWriter);
-            Console.WriteLine("Done");
+                Console.WriteLine("Done");
+            }
+            catch (SolutionBuildException e)
+            {
+                Console.WriteLine(e.Message);
+                Console.WriteLine("Press any key to Exit......");
+                Console.ReadLine();
+            }
         }
 
         private static void LoggerCallback(LogType logType, string data)
