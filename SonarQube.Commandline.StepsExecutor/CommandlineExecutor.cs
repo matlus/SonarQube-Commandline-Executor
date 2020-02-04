@@ -120,32 +120,14 @@ namespace SonarQube.Commandline.StepsExecutor
 
         public static void BuildSolution(string solutionFilename)
         {
-            bool buildSucceeded = true;            
             var projectDirectory = Path.GetDirectoryName(solutionFilename);
             var buildErrorsLogFile = Path.GetTempPath() + GetSolutionName(solutionFilename) + "_BuildErrors.txt";
 
-            Action<LogType, string> buildFailureDetectCallback = (logType, d) =>
-            {
-                if (d != null && d.Contains("Build FAILED"))
-                {
-                    buildSucceeded = false;
-                }
-            };
+            var commandlineArguments = $"\"{solutionFilename}\" /m:4 /nr:false /r: /t:Clean;Rebuild /p:Configuration=Release /flp1:logfile={buildErrorsLogFile};errorsonly";
+            LogCommandline("BuildSolution", projectDirectory, MsBuildPath, commandlineArguments);
+            var exitCode = ExecuteCommandlineProcess(projectDirectory, MsBuildPath, commandlineArguments);
 
-            try
-            {
-                _loggerCallback += buildFailureDetectCallback;
-                var commandlineArguments = $"\"{solutionFilename}\" /m:4 /nr:false /r: /t:Clean;Rebuild /p:Configuration=Release /flp1:logfile={buildErrorsLogFile};errorsonly";
-                LogCommandline("BuildSolution", projectDirectory, MsBuildPath, commandlineArguments);
-                ExecuteCommandlineProcess(projectDirectory, MsBuildPath, commandlineArguments);
-            }
-            finally
-            {
-                _loggerCallback -= buildFailureDetectCallback;
-            }
-
-
-            if (!buildSucceeded)
+            if (exitCode != 0)
             {
                 _loggerCallback(LogType.Error, File.ReadAllText(buildErrorsLogFile));
 
@@ -198,7 +180,7 @@ namespace SonarQube.Commandline.StepsExecutor
             var commandlineArguments = $" -NoProfile -ExecutionPolicy unrestricted -file \"{scriptPathAndFilename}\" {scriptArguments}";
 
             LogCommandline("ExecutePowershellScript", workingDirectory, powershellExecutable, commandlineArguments);
-            ExecuteCommandlineProcess(workingDirectory, powershellExecutable, commandlineArguments);
+            var exitCode = ExecuteCommandlineProcess(workingDirectory, powershellExecutable, commandlineArguments);
         }
 
         private static void LogCommandline(string description, string workingDirectory, string filename, string commandlineArguments)
@@ -209,7 +191,7 @@ namespace SonarQube.Commandline.StepsExecutor
             _loggerCallback(LogType.Info, "\tCommandline Arguments: " + commandlineArguments);
         }
 
-        private static void ExecuteCommandlineProcess(string workingDirectory, string fileName, string commandlinearguments)
+        private static int ExecuteCommandlineProcess(string workingDirectory, string fileName, string commandlinearguments)
         {
             var processStartInfo = new ProcessStartInfo
             {
@@ -231,6 +213,7 @@ namespace SonarQube.Commandline.StepsExecutor
                 process.Start();
                 process.BeginOutputReadLine();
                 process.WaitForExit();
+                return process.ExitCode;
             }
         }
 
